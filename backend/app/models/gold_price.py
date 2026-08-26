@@ -6,8 +6,10 @@ class GoldPriceRecord(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     symbol = Column(String, index=True, nullable=False)
-    price = Column(float, nullable=False)
+    price = Column(Float, nullable=False)
     currency = Column(String, nullable=False)
     unit = Column(String, nullable=False)
     timestamp = Column(DateTime(timezone=True), index=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    
