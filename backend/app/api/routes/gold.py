@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from datetime import datetime, timezone, timedelta
-from app.schemas.gold import GoldPrice, GoldPricePoint, GoldHistoryResponse
+from app.schemas.gold import GoldPrice, GoldPricePoint, GoldHistoryResponse, GoldStatistics
 
 router = APIRouter(prefix="/api/gold", tags=["gold"])
 
@@ -35,4 +35,24 @@ def get_history(range_: str = "1d"):
         unit="ounce",
         currency="USD",
         data=points,
+    )
+
+@router.get("/statistics", response_model=GoldStatistics)
+def get_statistics():
+    now = datetime.now(timezone.utc)
+    prices = [3400 + (i % 5) * 2.5 for i in range(12, 0, -1)]
+
+    high = max(prices)
+    low = min(prices)
+    open_price = prices[0]
+    current = prices[-1]
+    change_percent = ((current - open_price) / open_price) * 100
+
+    return GoldStatistics(
+        symbol="XAUUSD",
+        high=high,
+        low=low,
+        open=open_price,
+        current=current,
+        change_percent=round(change_percent, 2),
     )

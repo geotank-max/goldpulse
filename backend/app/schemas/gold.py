@@ -18,3 +18,11 @@ class GoldHistoryResponse(BaseModel):
     currency: str
     data: list[GoldPricePoint]
 
+class GoldStatistics(BaseModel):
+    symbol: str
+    high: float
+    low: float
+    open: float
+    current: float
+    change_percent: float
+
