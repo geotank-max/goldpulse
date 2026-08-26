@@ -1,6 +1,11 @@
-"""
-GoldPulse FastAPI entrypoint.
+from fastapi import FastAPI
+from app.api.routes import gold
 
-Stage 1 will add: GET /api/gold/current (mock data)
-Later stages add: history/statistics routes, DB startup, WebSocket route.
-"""
+app = FastAPI(title="GoldPulse API")
+
+app.include_router(gold.router)
+
+@app.get("/")
+def root():
+    return {"status": "ok", "service": "goldpulse-api"}
+
