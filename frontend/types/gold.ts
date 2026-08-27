@@ -9,3 +9,11 @@ export interface GoldHistoryResponse {
   currency: string;
   data: GoldPricePoint[];
 }
+
+export interface GoldPrice {
+  symbol: string;
+  price: number;
+  change: number;
+  change_percent: number;
+  timestamp: string;
+}

@@ -11,3 +11,15 @@ export async function getGoldHistory(range: string = "1d") {
 
   return res.json();
 }
+
+export async function getCurrentPrice() {
+  const res = await fetch(`${API_URL}/api/gold/current`, {
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch current price: ${res.status}`);
+  }
+
+  return res.json();
+}
