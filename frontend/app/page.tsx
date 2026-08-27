@@ -1,12 +1,13 @@
 import { getGoldHistory } from "../services/goldApi";
+import GoldChart from "../components/GoldChart";
 
 export default async function Home() {
   const history = await getGoldHistory("1d");
 
   return (
-    <main>
+    <main style={{ padding: "2rem" }}>
       <h1>GoldPulse</h1>
-      <pre>{JSON.stringify(history, null, 2)}</pre>
+      <GoldChart history={history} />
     </main>
   );
 }
