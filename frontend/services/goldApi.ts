@@ -1,1 +1,13 @@
-// Thin wrapper around fetch() for /api/gold/* REST endpoints.
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+export async function getGoldHistory(range: string = "1d") {
+  const res = await fetch(`${API_URL}/api/gold/history?range_=${range}`, {
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch gold history: ${res.status}`);
+  }
+
+  return res.json();
+}

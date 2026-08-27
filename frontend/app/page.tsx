@@ -1,5 +1,12 @@
-// GoldPulse homepage: price card + chart + statistics + connection status
-// Filled in during Stage 3 onward.
-export default function Home() {
-  return <main>GoldPulse — coming soon</main>;
+import { getGoldHistory } from "../services/goldApi";
+
+export default async function Home() {
+  const history = await getGoldHistory("1d");
+
+  return (
+    <main>
+      <h1>GoldPulse</h1>
+      <pre>{JSON.stringify(history, null, 2)}</pre>
+    </main>
+  );
 }
