@@ -12,7 +12,7 @@ export default async function Home() {
     <main style={{ padding: "2rem" }}>
       <h1>GoldPulse</h1>
       <GoldPriceCard price={currentPrice} />
-      <GoldChart history={history} />
+      <GoldChart initialHistory={history} />
     </main>
   );
 }
