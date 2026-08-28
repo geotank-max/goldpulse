@@ -17,3 +17,12 @@ export interface GoldPrice {
   change_percent: number;
   timestamp: string;
 }
+
+export interface GoldStatistics {
+  symbol: string;
+  high: number;
+  low: number;
+  open: number;
+  current: number;
+  change_percent: number;
+}

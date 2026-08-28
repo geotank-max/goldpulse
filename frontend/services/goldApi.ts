@@ -23,3 +23,15 @@ export async function getCurrentPrice() {
 
   return res.json();
 }
+
+export async function getStatistics() {
+  const res = await fetch(`${API_URL}/api/gold/statistics`, {
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch statistics: ${res.status}`);
+  }
+
+  return res.json();
+}
