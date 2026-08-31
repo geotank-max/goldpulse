@@ -1,13 +1,16 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import asyncio
+import random
 from sqlalchemy import select
 
 from app.api.routes import gold
 from app.db.database import SessionLocal
 from app.db.seed import seed_mock_prices
 from app.models.gold_price import GoldPriceRecord
+from app.websocket.manager import manager
 
 MAX_AGE_HOURS = 1
 
@@ -48,5 +51,18 @@ app.include_router(gold.router)
 def root():
     return {"status": "ok", "service": "goldpulse-api"}
 
-
-
+@app.websocket("/ws/gold")
+async def websocket_gold(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            mock_price = round(4600 + random.uniform(-5, 5), 2)
+            await manager.broadcast({
+                "type": "gold_price_update",
+                "symbol": "XAUUSD",
+                "price": mock_price,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            })
+            await asyncio.sleep(3)
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
