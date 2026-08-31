@@ -5,6 +5,7 @@ from app.db.database import get_db
 from app.models.gold_price import GoldPriceRecord
 from datetime import datetime, timezone, timedelta
 from app.schemas.gold import GoldPrice, GoldPricePoint, GoldHistoryResponse, GoldStatistics
+from app.services.gold_service import fetch_and_store_current_price, GoldProviderError
 
 router = APIRouter(prefix="/api/gold", tags=["gold"])
 
@@ -13,17 +14,17 @@ VALID_RANGES = {"1d", "1w", "1m", "3m", "6m", "1y"}
 RANGE_TO_HOURS = {"1d": 24, "1w": 24 * 7, "1m": 24 * 30, "3m": 24 * 90, "6m": 24 * 180, "1y": 24 * 365}
 
 @router.get("/current", response_model=GoldPrice)
-def get_current_price(db: Session = Depends(get_db)):
-    latest = db.execute(
-        select(GoldPriceRecord).order_by(GoldPriceRecord.timestamp.desc())
-    ).scalars().first()
+async def get_current_price(db: Session = Depends(get_db)):
+    try:
+        latest = await fetch_and_store_current_price(db)
+    except GoldProviderError as e:
+        raise HTTPException(status_code=503, detail=str(e))
 
     previous = db.execute(
-        select(GoldPriceRecord).order_by(GoldPriceRecord.timestamp.desc()).offset(1)
+        select(GoldPriceRecord)
+        .where(GoldPriceRecord.id != latest.id)
+        .order_by(GoldPriceRecord.timestamp.desc())
     ).scalars().first()
-
-    if latest is None:
-        raise HTTPException(status_code=503, detail="No gold price data available yet")
 
     change = latest.price - previous.price if previous else 0.0
     change_percent = (change / previous.price * 100) if previous else 0.0

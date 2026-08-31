@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 GOLD_API_KEY = os.getenv("GOLD_API_KEY")
-GOLD_API_URL = os.getenv("GOLD_API_URL", "https://www.goldapi.io/api")
+GOLD_API_URL = os.getenv("GOLD_API_URL") or "https://www.goldapi.io/api"
 
 
 class GoldProviderError(Exception):
