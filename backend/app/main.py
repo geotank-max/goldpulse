@@ -1,31 +1,47 @@
+import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-import asyncio
-import random
 from sqlalchemy import select
 
 from app.api.routes import gold
 from app.db.database import SessionLocal
 from app.db.seed import seed_mock_prices
 from app.models.gold_price import GoldPriceRecord
+from app.services.gold_service import fetch_and_store_current_price
 from app.websocket.manager import manager
 
 MAX_AGE_HOURS = 1
+POLL_INTERVAL_SECONDS = 15
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    _ensure_fresh_mock_data()
-    yield
+async def poll_gold_prices(interval_seconds: int = POLL_INTERVAL_SECONDS) -> None:
+    """Background task: periodically polls the gold price provider, persists
+    new prices when changed, and broadcasts updates over WebSocket."""
+    while True:
+        try:
+            db = SessionLocal()
+            try:
+                record = await fetch_and_store_current_price(db)
+                await manager.broadcast({
+                    "type": "gold_price_update",
+                    "symbol": record.symbol,
+                    "price": record.price,
+                    "timestamp": record.timestamp.isoformat(),
+                })
+            finally:
+                db.close()
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"[poller error] {e}")
+
+        await asyncio.sleep(interval_seconds)
 
 
 def _ensure_fresh_mock_data() -> None:
-    """Reseed when empty or the latest row is older than MAX_AGE_HOURS.
-
-    Keeps the demo chart populated while we're on mock data (pre-Stage 4).
-    """
+    """Reseed when empty or the latest row is older than MAX_AGE_HOURS."""
     db = SessionLocal()
     try:
         latest = db.execute(
@@ -43,26 +59,52 @@ def _ensure_fresh_mock_data() -> None:
         print(f"[startup] gold_prices was stale/empty; seeded {count} mock rows")
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    _ensure_fresh_mock_data()
+    poller_task = asyncio.create_task(poll_gold_prices(interval_seconds=POLL_INTERVAL_SECONDS))
+    try:
+        yield
+    finally:
+        poller_task.cancel()
+        try:
+            await poller_task
+        except asyncio.CancelledError:
+            pass
+
+
 app = FastAPI(title="GoldPulse API", lifespan=lifespan)
 
 app.include_router(gold.router)
+
 
 @app.get("/")
 def root():
     return {"status": "ok", "service": "goldpulse-api"}
 
+
 @app.websocket("/ws/gold")
 async def websocket_gold(websocket: WebSocket):
     await manager.connect(websocket)
     try:
+        # Send latest price snapshot immediately on connection
+        db = SessionLocal()
+        try:
+            latest = db.execute(
+                select(GoldPriceRecord).order_by(GoldPriceRecord.timestamp.desc())
+            ).scalars().first()
+            if latest:
+                await websocket.send_json({
+                    "type": "gold_price_update",
+                    "symbol": latest.symbol,
+                    "price": latest.price,
+                    "timestamp": latest.timestamp.isoformat(),
+                })
+        finally:
+            db.close()
+
+        # Keep connection open waiting for client disconnect or ping
         while True:
-            mock_price = round(4600 + random.uniform(-5, 5), 2)
-            await manager.broadcast({
-                "type": "gold_price_update",
-                "symbol": "XAUUSD",
-                "price": mock_price,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            })
-            await asyncio.sleep(3)
+            await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)

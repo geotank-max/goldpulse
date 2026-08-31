@@ -2,6 +2,7 @@ import { getGoldHistory, getCurrentPrice, getStatistics } from "../services/gold
 import GoldChart from "../components/GoldChart";
 import GoldPriceCard from "../components/GoldPriceCard";
 import GoldStatistics from "../components/GoldStatistics";
+import LiveStatus from "../components/LiveStatus";
 
 export default async function Home() {
   const [history, currentPrice, stats] = await Promise.all([
@@ -13,6 +14,7 @@ export default async function Home() {
   return (
     <main style={{ padding: "2rem" }}>
       <h1>GoldPulse</h1>
+      <LiveStatus />
       <GoldPriceCard price={currentPrice} />
       <GoldChart initialHistory={history} />
       <GoldStatistics stats={stats} />
