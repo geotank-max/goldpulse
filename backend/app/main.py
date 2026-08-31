@@ -11,10 +11,30 @@ from app.db.seed import seed_mock_prices
 from app.models.gold_price import GoldPriceRecord
 from app.services.gold_service import fetch_and_store_current_price
 from app.websocket.manager import manager
+from app.services.gold_provider import GoldProviderError
 
 MAX_AGE_HOURS = 1
 POLL_INTERVAL_SECONDS = 15
 
+async def price_collector_loop():
+    """Runs for the lifetime of the app: periodically fetches a live price,
+    stores it via gold_service, and broadcasts it to all connected WS clients."""
+    while True:
+        db = SessionLocal()
+        try:
+            record = await fetch_and_store_current_price(db)
+            await manager.broadcast({
+                "type": "gold_price_update",
+                "symbol": record.symbol,
+                "price": record.price,
+                "timestamp": record.timestamp.isoformat(),
+            })
+        except GoldProviderError as e:
+            print(f"[price_collector_loop] provider error: {e}")
+        finally:
+            db.close()
+
+        await asyncio.sleep(15)
 
 async def poll_gold_prices(interval_seconds: int = POLL_INTERVAL_SECONDS) -> None:
     """Background task: periodically polls the gold price provider, persists
@@ -61,16 +81,9 @@ def _ensure_fresh_mock_data() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    _ensure_fresh_mock_data()
-    poller_task = asyncio.create_task(poll_gold_prices(interval_seconds=POLL_INTERVAL_SECONDS))
-    try:
-        yield
-    finally:
-        poller_task.cancel()
-        try:
-            await poller_task
-        except asyncio.CancelledError:
-            pass
+    task = asyncio.create_task(price_collector_loop())
+    yield
+    task.cancel()
 
 
 app = FastAPI(title="GoldPulse API", lifespan=lifespan)
@@ -87,24 +100,7 @@ def root():
 async def websocket_gold(websocket: WebSocket):
     await manager.connect(websocket)
     try:
-        # Send latest price snapshot immediately on connection
-        db = SessionLocal()
-        try:
-            latest = db.execute(
-                select(GoldPriceRecord).order_by(GoldPriceRecord.timestamp.desc())
-            ).scalars().first()
-            if latest:
-                await websocket.send_json({
-                    "type": "gold_price_update",
-                    "symbol": latest.symbol,
-                    "price": latest.price,
-                    "timestamp": latest.timestamp.isoformat(),
-                })
-        finally:
-            db.close()
-
-        # Keep connection open waiting for client disconnect or ping
         while True:
-            await websocket.receive_text()
+            await websocket.receive_text()  # keep the connection alive; ignore client messages
     except WebSocketDisconnect:
         manager.disconnect(websocket)
