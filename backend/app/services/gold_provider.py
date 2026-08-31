@@ -1,10 +1,42 @@
-"""
-GoldPriceProvider: the ONLY place that talks to the external gold-price API.
+import os
+import httpx
+from dotenv import load_dotenv
+
+load_dotenv()
+
+GOLD_API_KEY = os.getenv("GOLD_API_KEY")
+GOLD_API_URL = os.getenv("GOLD_API_URL", "https://www.goldapi.io/api")
+
+
+class GoldProviderError(Exception):
+    """Raised when the external gold-price provider fails or returns bad data."""
+
 
 class GoldPriceProvider:
-    async def get_current_price(self): ...
-    async def get_historical_prices(self, start, end): ...
+    def __init__(self):
+        self.headers = {"x-access-token": GOLD_API_KEY}
 
-Swap providers by editing this file only — routers/services never call
-the external API directly.
-"""
+    async def get_current_price(self) -> dict:
+        url = f"{GOLD_API_URL}/XAU/USD"
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            try:
+                response = await client.get(url, headers=self.headers)
+                response.raise_for_status()
+            except httpx.HTTPError as e:
+                raise GoldProviderError(f"Gold provider request failed: {e}") from e
+
+            data = response.json()
+
+        if "price" not in data:
+            raise GoldProviderError(
+                f"Unexpected response shape from provider, missing 'price': {data}"
+            )
+
+        return {
+            "symbol": "XAUUSD",
+            "price": data["price"],
+            "open_price": data.get("open_price"),
+            "high_price": data.get("high_price"),
+            "low_price": data.get("low_price"),
+        }

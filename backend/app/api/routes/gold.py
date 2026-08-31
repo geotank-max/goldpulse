@@ -1,4 +1,4 @@
-from fastapi import APIRouter,Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from app.db.database import get_db
@@ -21,6 +21,9 @@ def get_current_price(db: Session = Depends(get_db)):
     previous = db.execute(
         select(GoldPriceRecord).order_by(GoldPriceRecord.timestamp.desc()).offset(1)
     ).scalars().first()
+
+    if latest is None:
+        raise HTTPException(status_code=503, detail="No gold price data available yet")
 
     change = latest.price - previous.price if previous else 0.0
     change_percent = (change / previous.price * 100) if previous else 0.0
@@ -58,6 +61,8 @@ def get_statistics(db: Session = Depends(get_db)):
     ).scalars().all()
 
     prices = [r.price for r in rows]
+    if not prices:
+        raise HTTPException(status_code=503, detail="No gold price data available yet")
     high = max(prices)
     low = min(prices)
     open_price = prices[0]
